@@ -13,6 +13,8 @@ services:
       # Inside Docker, services reach each other by service name, not localhost.
       - PRODUCT_SERVICE_URL=http://product-service:8081
       - KAFKA_SERVERS=kafka:9092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
       - product-service
   zookeeper:
@@ -31,3 +33,7 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
