@@ -18,8 +18,18 @@ spring:
                 - Path=/api/products,/api/products/**
               filters:
                 - RewritePath=/api/products(?<segment>/?.*), /products$\{segment}
+                - name: RequestRateLimiter           # the built-in, Redis-backed limiter
+                  args:
+                    redis-rate-limiter.replenishRate: 2    # refill 2 tokens/sec (steady rate)
+                    redis-rate-limiter.burstCapacity: 5    # bucket holds up to 5 (max burst)
+                    redis-rate-limiter.requestedTokens: 1  # each request costs 1 token
+                    key-resolver: "#{@userKeyResolver}"    # use the bean above
   kafka:
     bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}

@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * A GlobalFilter runs on EVERY request passing through the gateway.
  * This one counts requests per user and rejects them past a limit.
  */
-@Component
+
 public class InMemoryRateLimitFilter implements GlobalFilter, Ordered {
 
     private static final int    LIMIT     = 5;        // max 5 requests...
