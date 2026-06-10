@@ -18,12 +18,17 @@ spring:
                 - Path=/api/products,/api/products/**
               filters:
                 - RewritePath=/api/products(?<segment>/?.*), /products$\{segment}
-                - name: RequestRateLimiter           # the built-in, Redis-backed limiter
-                  args:
-                    redis-rate-limiter.replenishRate: 2    # refill 2 tokens/sec (steady rate)
-                    redis-rate-limiter.burstCapacity: 5    # bucket holds up to 5 (max burst)
-                    redis-rate-limiter.requestedTokens: 1  # each request costs 1 token
-                    key-resolver: "#{@userKeyResolver}"    # use the bean above
+                # --- Built-in token bucket (Spring Cloud Gateway RequestRateLimiter) ----
+                # DISABLED. Superseded by the Phase 4 sliding-window limiter (production)
+                # and left here, commented, as a reference alternative.
+                # To use it: uncomment this block and set both
+                # rate-limiter.sliding-window.enabled and fixed-window.enabled to false.
+                #- name: RequestRateLimiter           # the built-in, Redis-backed limiter
+                #  args:
+                #    redis-rate-limiter.replenishRate: 2    # refill 2 tokens/sec (steady rate)
+                #    redis-rate-limiter.burstCapacity: 5    # bucket holds up to 5 (max burst)
+                #    redis-rate-limiter.requestedTokens: 1  # each request costs 1 token
+                #    key-resolver: "#{@userKeyResolver}"    # use the bean above
   kafka:
     bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
     producer:
@@ -33,3 +38,18 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+
+# Custom rate limiters. Phase 4 sliding window is the production limiter; the
+# Phase 3 fixed window is kept disabled for comparison. Enable only one at a time.
+rate-limiter:
+  # Phase 3 - fixed-window counter (atomic INCR + EXPIRE). Disabled by default;
+  # demonstrates the boundary-burst limitation that the sliding window fixes.
+  fixed-window:
+    enabled: false          # set true (and sliding-window.enabled false) to use it
+    window-size-ms: 60000   # 1 minute
+    max-requests: 10        # per window per client IP
+  # Phase 4 - sliding-window log via atomic Lua script (production limiter).
+  sliding-window:
+    enabled: true           # set false to disable both bean + filter
+    window-size-ms: 60000   # 1 minute
+    max-requests: 10        # per window per client IP

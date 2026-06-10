@@ -64,6 +64,34 @@ Why Lua: each request must be a single atomic check-and-add. Doing this with sep
 - **ADR-0003 (planned):** Rate-limit key strategy (user ID > API key > IP fallback)
 - **ADR-0004 (planned):** When to shard Redis: keys vs cluster mode
 
+## Phase 4 Update — Sliding Window via Lua Script
+
+Phase 3 shipped a Redis fixed-window counter; Phase 4 replaces it with the sliding-window log this ADR originally specified and makes that the production limiter. The journey fixes two distinct problems in order: first atomicity (the token-bucket counters before it could race), then fairness (a fixed window bursts at its boundaries). This section records both.
+
+### The atomicity problem: how a naive token bucket races
+
+The token bucket read and wrote Redis in separate steps: roughly a `GET` of the remaining tokens, a decision in the gateway JVM, then a `DECREMENT`. Those steps are not a single atomic operation. Two requests for the same key can both `GET` the same remaining count (say `1`), both decide they are under the limit, and both `DECREMENT` — letting two requests through a bucket that only had room for one. This is a classic check-then-act race, and it gets worse, not better, as traffic and replica count grow. Wrapping the commands in `MULTI`/`EXEC` does not fix it: a transaction batches commands but the *decision* still depends on a value read before the batch, so the read-decide-write window is still open to interleaving.
+
+### How the Lua script eliminates it
+
+Redis executes a Lua script as a single atomic unit — no other command from any client can interleave while the script runs. The `sliding_window.lua` script does the eviction (`ZREMRANGEBYSCORE`), the count (`ZCARD`), the decision, and the write (`ZADD` + `PEXPIRE`) all inside that atomic execution. There is no read-decide-write gap for a concurrent request to exploit, so no `MULTI`/`EXEC` and no optimistic `WATCH` retry loop is needed. Atomicity is the whole point of moving the logic server-side.
+
+### Why sliding window is fairer than fixed window
+
+A fixed-window counter resets the count at fixed boundaries (e.g. on the minute). A client can send the full quota in the last moment of one window and the full quota again in the first moment of the next — up to 2× the intended rate across that boundary. The sliding-window log scores every request by its own timestamp and, on each request, only counts entries within `[now − window, now]`. The window moves continuously with the clock, so there is no boundary to burst across; the limit holds over every window position, not just the aligned ones.
+
+This fixed-window counter is implemented as `RedisFixedWindowRateLimiter` (Phase 3) — an atomic `INCR` + `PEXPIRE` Lua script over a per-bucket key — and kept **disabled by default**. Keeping it in the codebase lets the boundary burst be reproduced directly and contrasted with the sliding window; note that fixed window is atomic too, so this isolates the *fairness* problem from the *atomicity* problem the token bucket had.
+
+### Trade-off: memory
+
+The token bucket stores `O(1)` per key (a couple of counters). The sliding-window log stores one sorted-set entry per request currently inside the window, i.e. `O(requests-in-window)` per key. With a 1-minute window and a 10-req limit that is at most ~10 small entries per client, bounded by the per-key `PEXPIRE`. This is a deliberate, acceptable cost for exact, burst-correct limiting; if a key's window ever needs to hold a very large number of requests, the approximate sliding-window-counter variant becomes the better memory trade-off (noted in the alternatives table).
+
+### Decision
+
+The **sliding-window Lua script is the production rate limiter** (`RedisSlidingWindowRateLimiter` + `SlidingWindowRateLimiterFilter`). The **Phase 3 fixed-window** limiter (`RedisFixedWindowRateLimiter`) is **kept in the codebase, disabled by default, as a documented comparison** — it is atomic like the sliding window, so it isolates the *fairness* problem (the boundary burst) from the *atomicity* problem the token bucket had.
+
+Both custom limiters are toggleable by configuration: `rate-limiter.fixed-window.enabled` (default `false`) and `rate-limiter.sliding-window.enabled` (default `true`), each a `@ConditionalOnProperty` flag that adds or removes both the limiter bean and its global filter. The built-in Spring Cloud Gateway `RequestRateLimiter` (a Redis token bucket explored earlier) stays commented on `product-route` as a third reference; re-enabling it means uncommenting that block. Shipped defaults keep exactly one limiter active (the sliding window), so there is no double-limiting.
+
 ## References
 
 - *Designing Data-Intensive Applications*, Kleppmann — Chapter 5 (Replication) and 9 (Consistency)
