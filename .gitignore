@@ -1,0 +1,11 @@
+
+# IDE
+.idea/
+
+# Maven wrapper (generated)
+api-gateway/.gitattributes
+api-gateway/.junie/
+api-gateway/mvnw.cmd
+product-service/.gitattributes
+product-service/mvnw
+product-service/mvnw.cmd
