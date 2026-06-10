@@ -29,6 +29,7 @@
 	<properties>
 		<java.version>21</java.version>
 		<spring-cloud.version>2025.1.1</spring-cloud.version>
+		<testcontainers.version>1.20.4</testcontainers.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -54,6 +55,22 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+		</dependency>
+
+		<!-- Testcontainers: real Redis for the rate-limiter integration tests.
+		     Version pinned explicitly: the Spring Boot-managed Testcontainers BOM
+		     does not supply a version for the junit-jupiter module. -->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<version>${testcontainers.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>testcontainers</artifactId>
+			<version>${testcontainers.version}</version>
+			<scope>test</scope>
 		</dependency>
 	</dependencies>
 	<dependencyManagement>
