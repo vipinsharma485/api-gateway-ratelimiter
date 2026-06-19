@@ -60,9 +60,11 @@ Why Lua: each request must be a single atomic check-and-add. Doing this with sep
 - Memory per rate-limit key scales with window size × peak request rate. Need to monitor; consider truncation strategies if it grows unbounded
 
 ### Open questions tracked for future ADRs
-- **ADR-0002 (planned):** Fail-open vs fail-closed when Redis is unreachable
-- **ADR-0003 (planned):** Rate-limit key strategy (user ID > API key > IP fallback)
-- **ADR-0004 (planned):** When to shard Redis: keys vs cluster mode
+- **ADR-0003 (planned):** Fail-open vs fail-closed when Redis is unreachable
+- **ADR-0004 (planned):** Rate-limit key strategy (user ID > API key > IP fallback)
+- **ADR-0005 (planned):** When to shard Redis: keys vs cluster mode
+
+(ADR-0002 is the circuit-breaker decision — a separate resilience concern.)
 
 ## Phase 4 Update — Sliding Window via Lua Script
 

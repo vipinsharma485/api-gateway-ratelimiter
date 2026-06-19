@@ -46,7 +46,7 @@ flowchart LR
 | Downstream service | Spring Boot 4.0 (MVC) |
 | Rate-limit state | Redis 7 (sliding window via Lua) |
 | Event bus | Apache Kafka (429 audit events) |
-| Resilience (planned) | Resilience4j circuit breaker |
+| Resilience | Resilience4j circuit breaker (downstream calls) |
 | Auth (planned) | Okta OAuth2 / JWT |
 | Observability (planned) | Micrometer + Prometheus + Grafana |
 | Build | Maven |
@@ -118,6 +118,12 @@ Retry-After: 60
 
 Enable only one limiter at a time. To run the Phase 3 fixed window instead, set `rate-limiter.fixed-window.enabled: true` and `rate-limiter.sliding-window.enabled: false`. The built-in token bucket can be restored by uncommenting the `RequestRateLimiter` filter on `product-route`.
 
+## Resilience
+
+Downstream calls are wrapped in a **Resilience4j circuit breaker** via Spring Cloud Gateway's `CircuitBreaker` route filter (see [ADR-0002](docs/decisions/0002-circuit-breaker.md)). When `product-service` fails or exceeds a 3s timeout and the failure rate crosses 50% over the recent call window, the breaker opens and requests are routed to a fast fallback (`/fallback/products`) that returns `503` with `{"error": ..., "retryable": true}` instead of hanging. After a 10s cooldown it half-opens to probe for recovery before closing again.
+
+Key settings (`application.yaml`, instance `productCircuitBreaker`): 50% failure-rate threshold over a 10-call window, 5-call minimum, 10s open state, 3 half-open probes, 3s call timeout.
+
 ## Build phases
 
 This is a deliberately layered build. Each phase adds one new piece and is shipped as a set of focused commits.
@@ -128,7 +134,7 @@ This is a deliberately layered build. Each phase adds one new piece and is shipp
 | 2 | In-memory rate limiter with token bucket | ✅ Done |
 | 3 | Redis-backed fixed-window rate limiter (atomic INCR + EXPIRE) | ✅ Done |
 | 4 | Redis sliding-window via atomic Lua script | ✅ Done |
-| 5 | Resilience4j circuit breakers on downstream calls | ⬜ |
+| 5 | Resilience4j circuit breaker on downstream calls (fast-fail + fallback) | ✅ Done |
 | 6 | Distributed tracing with OpenTelemetry + Jaeger | ⬜ |
 | 7 | Prometheus metrics + Grafana dashboard | ⬜ |
 | 8 | Kafka audit-event publishing (outbox pattern) | ⬜ |
@@ -147,6 +153,7 @@ Architectural decisions are recorded as ADRs in [`docs/decisions/`](docs/decisio
 | # | Decision | Status |
 |---|----------|--------|
 | [0001](docs/decisions/0001-distributed-rate-limiting.md) | Distributed rate limiting via Redis sliding window | Accepted — updated with Phase 4 |
+| [0002](docs/decisions/0002-circuit-breaker.md) | Circuit breaker on downstream calls (Resilience4j) | Accepted |
 
 ## Project structure
 
