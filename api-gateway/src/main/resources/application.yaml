@@ -18,6 +18,10 @@ spring:
                 - Path=/api/products,/api/products/**
               filters:
                 - RewritePath=/api/products(?<segment>/?.*), /products$\{segment}
+                - name: CircuitBreaker                 # Phase 5: trip on downstream failures/timeouts
+                  args:
+                    name: productCircuitBreaker
+                    fallbackUri: forward:/fallback/products
                 # --- Built-in token bucket (Spring Cloud Gateway RequestRateLimiter) ----
                 # DISABLED. Superseded by the Phase 4 sliding-window limiter (production)
                 # and left here, commented, as a reference alternative.
@@ -53,3 +57,20 @@ rate-limiter:
     enabled: true           # set false to disable both bean + filter
     window-size-ms: 60000   # 1 minute
     max-requests: 10        # per window per client IP
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      productCircuitBreaker:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5                   # need 5 calls before judging the rate
+        failure-rate-threshold: 50                   # open once >= 50% of recent calls fail
+        wait-duration-in-open-state: 10s             # stay open 10s, then probe (half-open)
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+  timelimiter:
+    instances:
+      productCircuitBreaker:
+        timeout-duration: 3s                         # a slow downstream counts as a failure
+        cancel-running-future: true
