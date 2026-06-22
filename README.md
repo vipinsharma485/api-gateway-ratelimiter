@@ -27,6 +27,8 @@ flowchart LR
     GW -.->|Sliding-window log| Redis[(Redis 7)]
     GW -.->|Audit events| Kafka[(Kafka)]
     GW -.->|Metrics| Prom[Prometheus]
+    GW -.->|Traces| Jaeger[(Jaeger)]
+    PS -.->|Traces| Jaeger
 
     subgraph Future
       direction LR
@@ -47,6 +49,7 @@ flowchart LR
 | Rate-limit state | Redis 7 (sliding window via Lua) |
 | Event bus | Apache Kafka (429 audit events) |
 | Resilience | Resilience4j circuit breaker (downstream calls) |
+| Tracing | Micrometer Tracing + OpenTelemetry (OTLP) → Jaeger |
 | Auth (planned) | Okta OAuth2 / JWT |
 | Observability (planned) | Micrometer + Prometheus + Grafana |
 | Build | Maven |
@@ -124,6 +127,12 @@ Downstream calls are wrapped in a **Resilience4j circuit breaker** via Spring Cl
 
 Key settings (`application.yaml`, instance `productCircuitBreaker`): 50% failure-rate threshold over a 10-call window, 5-call minimum, 10s open state, 3 half-open probes, 3s call timeout.
 
+## Observability
+
+Both services are traced end to end with **Micrometer Tracing → OpenTelemetry**, exported over **OTLP to Jaeger** (see [ADR-0003](docs/decisions/0003-distributed-tracing.md)). A request gets one trace ID that follows it across the gateway and `product-service` (propagated via the W3C `traceparent` header), so you can see exactly where latency or errors occur. `spring.application.name` labels each service's spans; sampling is 100% in dev.
+
+View traces in the Jaeger UI at `http://localhost:16686` after `docker compose up`. The OTLP endpoint is configurable per service via `OTLP_ENDPOINT` (defaults to `http://localhost:4318/v1/traces`).
+
 ## Build phases
 
 This is a deliberately layered build. Each phase adds one new piece and is shipped as a set of focused commits.
@@ -135,7 +144,7 @@ This is a deliberately layered build. Each phase adds one new piece and is shipp
 | 3 | Redis-backed fixed-window rate limiter (atomic INCR + EXPIRE) | ✅ Done |
 | 4 | Redis sliding-window via atomic Lua script | ✅ Done |
 | 5 | Resilience4j circuit breaker on downstream calls (fast-fail + fallback) | ✅ Done |
-| 6 | Distributed tracing with OpenTelemetry + Jaeger | ⬜ |
+| 6 | Distributed tracing with OpenTelemetry + Jaeger | ✅ Done |
 | 7 | Prometheus metrics + Grafana dashboard | ⬜ |
 | 8 | Kafka audit-event publishing (outbox pattern) | ⬜ |
 | 9 | JWT validation via Okta JWKS | ⬜ |
@@ -154,6 +163,7 @@ Architectural decisions are recorded as ADRs in [`docs/decisions/`](docs/decisio
 |---|----------|--------|
 | [0001](docs/decisions/0001-distributed-rate-limiting.md) | Distributed rate limiting via Redis sliding window | Accepted — updated with Phase 4 |
 | [0002](docs/decisions/0002-circuit-breaker.md) | Circuit breaker on downstream calls (Resilience4j) | Accepted |
+| [0003](docs/decisions/0003-distributed-tracing.md) | Distributed tracing (Micrometer + OpenTelemetry → Jaeger) | Accepted |
 
 ## Project structure
 
