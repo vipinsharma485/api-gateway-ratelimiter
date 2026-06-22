@@ -62,6 +62,17 @@
 			<artifactId>spring-boot-starter-data-redis-reactive</artifactId>
 		</dependency>
 
+		<!-- Phase 6: distributed tracing. Spring Boot 4's OpenTelemetry starter bundles
+		     the OTel API, the Micrometer->OTel tracing bridge, and the OTLP exporter. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-opentelemetry</artifactId>
+		</dependency>
+
 		<!-- Testcontainers: real Redis for the rate-limiter integration tests.
 		     Version pinned explicitly: the Spring Boot-managed Testcontainers BOM
 		     does not supply a version for the junit-jupiter module. -->

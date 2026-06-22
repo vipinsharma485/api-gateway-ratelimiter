@@ -7,6 +7,8 @@ logging:
     reactor.netty: DEBUG
 
 spring:
+  application:
+    name: api-gateway
   cloud:
     gateway:
       server:
@@ -74,3 +76,14 @@ resilience4j:
       productCircuitBreaker:
         timeout-duration: 3s                         # a slow downstream counts as a failure
         cancel-running-future: true
+
+# Phase 6 - distributed tracing exported to Jaeger via OTLP.
+management:
+  tracing:
+    sampling:
+      probability: 1.0          # sample 100% in dev; lower this in production
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_ENDPOINT:http://localhost:4318/v1/traces}

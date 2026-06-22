@@ -4,6 +4,10 @@ services:
     build: ./product-service
     ports:
       - "8081:8081"
+    environment:
+      - OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+    depends_on:
+      - jaeger
 
   api-gateway:
     build: ./api-gateway
@@ -15,8 +19,10 @@ services:
       - KAFKA_SERVERS=kafka:9092
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - OTLP_ENDPOINT=http://jaeger:4318/v1/traces
     depends_on:
       - product-service
+      - jaeger
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     environment:
@@ -37,3 +43,10 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4318:4318"     # OTLP HTTP receiver
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
